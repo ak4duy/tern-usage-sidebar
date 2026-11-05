@@ -321,17 +321,66 @@ local function applyItem(current, item)
 	return true
 end
 
+local CENTERED_PICKER = [[#pick.anchored > .tn-pk {
+	left: 50% !important;
+	top: 12vh !important;
+	right: auto !important;
+	bottom: auto !important;
+	width: min(640px, calc(100vw - 48px)) !important;
+	transform: translateX(-50%) !important;
+}]]
+
 local function openSettings(cx)
 	local current = loadSettings()
+	tern.css("settings-picker", CENTERED_PICKER)
 	cx:pick({ items = settingsItems(current), placeholder = "Usage bar settings", icon = "gear", action = "apply" })
 		:next(function(item, _, nextCx)
 			if item and applyItem(current, item) and nextCx then
 				openSettings(nextCx)
+			else
+				tern.css("settings-picker", "")
 			end
 		end)
 end
 
-tern.command({ id = "settings", title = "Usage Bar: Settings", icon = "gear", run = openSettings })
+local function registerSettingCommands()
+	for _, item in settingsItems(loadSettings()) do
+		if not item.refresh_now then
+			local entry = item
+			local title = item.label
+			if item.toggle_provider then
+				title = "Toggle " .. title:gsub("^Show ", "")
+			elseif item.style then
+				title = "Style: " .. title
+			elseif item.refresh_minutes then
+				title = "Refresh " .. title:lower()
+			else
+				title = "Toggle " .. title:lower()
+			end
+			local id = item.toggle_provider and ("toggle-" .. item.toggle_provider)
+				or item.toggle and ("toggle-" .. item.toggle)
+				or item.style and ("style-" .. item.style)
+				or ("refresh-" .. item.refresh_minutes)
+			tern.command({
+				id = id,
+				title = "Usage Bar: " .. title,
+				icon = "gear",
+				run = function(_)
+					applyItem(loadSettings(), entry)
+				end,
+			})
+		end
+	end
+end
+
+registerSettingCommands()
+
+tern.command({
+	id = "settings",
+	title = "Usage Bar: Settings",
+	icon = "gear",
+	run = openSettings,
+})
 tern.command({ id = "refresh", title = "Usage Bar: Refresh now", icon = "refresh", run = function() fetch() end })
 
 fetch()
