@@ -4,6 +4,11 @@ A Tern plugin that shows your AI usage limits in the status bar, using data from
 
 Each provider gets a small two-line bar: the top line is the 5-hour window, the bottom line is the weekly window. Hover a bar to see the percentages and reset times.
 
+## Screenshots
+
+![](assets/bars.png)
+![](assets/settings.png)
+
 ## Requirements
 
 - Tern with plugin support and `"status_bar": true` in `settings.json`
