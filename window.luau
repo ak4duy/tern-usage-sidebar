@@ -31,7 +31,12 @@ local PROVIDERS = {
 	{ id = "cline", title = "Cline" },
 }
 
-local REFRESH_CHOICES = { 1, 5, 15, 30 }
+local STYLE_CHOICES = {
+	{ id = "bars", label = "Bars" },
+	{ id = "text", label = "Percent text" },
+}
+
+local REFRESH_CHOICES = { 1, 2, 5, 10, 15, 30, 60 }
 local FIVE_HOURS = 5 * 3600
 local SEVEN_DAYS = 7 * 86400
 
@@ -46,6 +51,9 @@ local function loadSettings()
 	local loaded = {
 		shown = {},
 		refresh_minutes = tonumber(saved.refresh_minutes) or 5,
+		style = saved.style == "text" and "text" or "bars",
+		separators = saved.separators ~= false,
+		tooltips = saved.tooltips ~= false,
 	}
 	for _, provider in PROVIDERS do
 		if shown[provider.id] == nil then
@@ -118,6 +126,9 @@ local function barMetrics(entry)
 	if not entry or entry.status ~= "ready" or #(entry.metrics or {}) == 0 then
 		return nil
 	end
+	if not tonumber(entry.metrics[1].percent) and not findMetric(entry, FIVE_HOURS) then
+		return nil
+	end
 	local top = findMetric(entry, FIVE_HOURS) or entry.metrics[1]
 	return top, findMetric(entry, SEVEN_DAYS) or top
 end
@@ -154,24 +165,37 @@ local function updateCss()
 	for _, provider in PROVIDERS do
 		local entry = entryById(usage.entries, provider.id)
 		local top, bottom = barMetrics(entry)
-		if top then
+		if top and currentSettings().style == "bars" then
 			table.insert(rules, string.format(
 				'.sl-plugin[data-tone~="usage-%s"] { --h: %d%%; --w: %d%%; --tip: %s; }',
-				provider.id, percentOf(top), percentOf(bottom), cssString(tooltip(entry))
+				provider.id, percentOf(top), percentOf(bottom),
+				cssString(currentSettings().tooltips and tooltip(entry) or "")
 			))
 		end
 	end
 	tern.css("usage-bar", table.concat(rules, "\n"))
 end
 
+local function balanceText(entry)
+	local metric = entry.metrics and entry.metrics[1]
+	return metric and tostring(metric.value or "") or ""
+end
+
 local function providerSegments(provider, entry)
 	if not entry then
 		return { { text = provider.title .. " not configured" } }
 	end
-	if not barMetrics(entry) then
+	if entry.status ~= "ready" or #(entry.metrics or {}) == 0 then
 		return { { text = provider.title .. " unavailable" } }
 	end
-	return { { text = "", icon = provider.icon, tone = "usage usage-" .. provider.id } }
+	local top = barMetrics(entry)
+	if not top then
+		return { { text = provider.title .. " " .. balanceText(entry) } }
+	end
+	if currentSettings().style == "text" then
+		return { { text = string.format("%s %d%%", provider.title, percentOf(top)) } }
+	end
+	return { { text = provider.icon and "" or provider.title, icon = provider.icon, tone = "usage usage-" .. provider.id } }
 end
 
 local function statusSegments()
@@ -182,7 +206,7 @@ local function statusSegments()
 	local segments = {}
 	for _, provider in PROVIDERS do
 		if current.shown[provider.id] then
-			if #segments > 0 then
+			if #segments > 0 and current.separators then
 				table.insert(segments, { text = "│" })
 			end
 			for _, segment in providerSegments(provider, entryById(usage.entries, provider.id)) do
@@ -243,6 +267,16 @@ local function settingsItems(current)
 			toggle_provider = provider.id,
 		})
 	end
+	for _, choice in STYLE_CHOICES do
+		table.insert(items, {
+			label = choice.label,
+			group = "Style",
+			current = current.style == choice.id,
+			style = choice.id,
+		})
+	end
+	table.insert(items, { label = "Separators", group = "Style", current = current.separators, toggle = "separators" })
+	table.insert(items, { label = "Hover tooltips", group = "Style", current = current.tooltips, toggle = "tooltips" })
 	for _, minutes in REFRESH_CHOICES do
 		table.insert(items, {
 			label = "Every " .. minutes .. " min",
@@ -255,27 +289,43 @@ local function settingsItems(current)
 	return items
 end
 
+local function enableProvider(id)
+	pcall(tern.process.run, { "ai-usagebar", "settings", "enable", id }, { timeout_ms = 15000 }, function(_)
+		fetch()
+	end)
+end
+
+local function applyItem(current, item)
+	if item.refresh_now then
+		fetch()
+		return false
+	end
+	if item.toggle_provider then
+		local id = item.toggle_provider
+		current.shown[id] = not current.shown[id]
+		if current.shown[id] then
+			enableProvider(id)
+		end
+	end
+	if item.toggle then
+		current[item.toggle] = not current[item.toggle]
+	end
+	current.style = item.style or current.style
+	current.refresh_minutes = item.refresh_minutes or current.refresh_minutes
+	saveSettings(current)
+	updateCss()
+	refreshBar()
+	if item.refresh_minutes then
+		scheduleFetch()
+	end
+	return true
+end
+
 local function openSettings(cx)
 	local current = loadSettings()
 	cx:pick({ items = settingsItems(current), placeholder = "Usage bar settings", icon = "gear", action = "apply" })
 		:next(function(item, _, nextCx)
-			if not item then
-				return
-			end
-			if item.refresh_now then
-				fetch()
-				return
-			end
-			if item.toggle_provider then
-				current.shown[item.toggle_provider] = not current.shown[item.toggle_provider]
-			end
-			current.refresh_minutes = item.refresh_minutes or current.refresh_minutes
-			saveSettings(current)
-			refreshBar()
-			if item.refresh_minutes then
-				scheduleFetch()
-			end
-			if nextCx then
+			if item and applyItem(current, item) and nextCx then
 				openSettings(nextCx)
 			end
 		end)
