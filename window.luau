@@ -1,7 +1,34 @@
 local PROVIDERS = {
-	{ id = "anthropic", title = "Claude", icon = "provider-anthropic" },
-	{ id = "antigravity", title = "Agy", icon = "provider-google-antigravity" },
-	{ id = "openai", title = "Codex", icon = "provider-openai" },
+	{ id = "anthropic", title = "Claude", icon = "provider-anthropic", default = true },
+	{ id = "antigravity", title = "Agy", icon = "provider-google-antigravity", default = true },
+	{ id = "openai", title = "Codex", icon = "provider-openai", default = true },
+	{ id = "anthropic_api", title = "Anthropic API" },
+	{ id = "copilot", title = "Copilot" },
+	{ id = "zai", title = "Z.AI" },
+	{ id = "openrouter", title = "OpenRouter" },
+	{ id = "deepseek", title = "DeepSeek" },
+	{ id = "deepinfra", title = "DeepInfra" },
+	{ id = "kimi", title = "Kimi" },
+	{ id = "kilo", title = "Kilo" },
+	{ id = "novita", title = "Novita" },
+	{ id = "synthetic", title = "Synthetic" },
+	{ id = "moonshot", title = "Moonshot" },
+	{ id = "grok", title = "Grok" },
+	{ id = "supergrok", title = "SuperGrok" },
+	{ id = "grokbot", title = "Grok Bot" },
+	{ id = "cursor", title = "Cursor" },
+	{ id = "minimax", title = "MiniMax" },
+	{ id = "kiro", title = "Kiro" },
+	{ id = "nous", title = "Nous" },
+	{ id = "opencode-go", title = "OpenCode Go" },
+	{ id = "commandcode", title = "Command Code" },
+	{ id = "ollama", title = "Ollama" },
+	{ id = "orcarouter", title = "OrcaRouter" },
+	{ id = "modelstudio", title = "Model Studio" },
+	{ id = "lyceum", title = "Lyceum" },
+	{ id = "devin", title = "Devin" },
+	{ id = "muse-code", title = "Muse Code" },
+	{ id = "cline", title = "Cline" },
 }
 
 local REFRESH_CHOICES = { 1, 5, 15, 30 }
@@ -21,7 +48,11 @@ local function loadSettings()
 		refresh_minutes = tonumber(saved.refresh_minutes) or 5,
 	}
 	for _, provider in PROVIDERS do
-		loaded.shown[provider.id] = shown[provider.id] ~= false
+		if shown[provider.id] == nil then
+			loaded.shown[provider.id] = provider.default == true
+		else
+			loaded.shown[provider.id] = shown[provider.id] == true
+		end
 	end
 	return loaded
 end
