@@ -6,7 +6,7 @@ Each provider gets a small two-line bar: the top line is the 5-hour window, the 
 
 ## Requirements
 
-- Tern with plugin support
+- Tern with plugin support and `"status_bar": true` in `settings.json`
 - `ai-usagebar` on your `PATH` (`ai-usagebar usage --json` must work)
 
 ## Install
