@@ -1,0 +1,6 @@
+schema = 1
+id = "tern-usage-sidebar"
+name = "Usage Sidebar"
+version = "0.1.0"
+description = "Claude, Antigravity and Codex usage in the status bar, from ai-usagebar"
+window = "window.luau"
