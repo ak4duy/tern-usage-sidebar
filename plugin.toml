@@ -1,6 +1,6 @@
 schema = 1
 id = "tern-usage-sidebar"
 name = "Usage Sidebar"
-version = "0.1.0"
+version = "0.1.1"
 description = "AI usage bars in Tern's status bar"
 window = "window.luau"
