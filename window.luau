@@ -34,6 +34,7 @@ local PROVIDERS = {
 local STYLE_CHOICES = {
 	{ id = "bars", label = "Bars" },
 	{ id = "text", label = "Percent text" },
+	{ id = "rings", label = "Rings" },
 }
 
 local REFRESH_CHOICES = { 1, 2, 5, 10, 15, 30, 60 }
@@ -51,7 +52,7 @@ local function loadSettings()
 	local loaded = {
 		shown = {},
 		refresh_minutes = tonumber(saved.refresh_minutes) or 5,
-		style = saved.style == "text" and "text" or "bars",
+		style = (saved.style == "text" or saved.style == "rings") and saved.style or "bars",
 		separators = saved.separators ~= false,
 		tooltips = saved.tooltips ~= false,
 	}
@@ -114,12 +115,71 @@ local BAR_CSS = [[.sl-plugin[data-tone~="usage"]::after {
 	color: var(--t1);
 }]]
 
+local RING_CSS = [[.sl-plugin[data-tone~="usage-ring"]::after {
+	order: 1;
+	content: "";
+	width: 14px;
+	height: 14px;
+	background-position: center;
+	background-size: contain;
+	background-repeat: no-repeat;
+}
+.sl-plugin[data-tone~="usage-ring"]:hover::before {
+	order: 2;
+	content: var(--tip);
+	color: var(--t1);
+}]]
+
+local RING_RADIUS = 5.5
+local RING_CIRCUMFERENCE = 2 * math.pi * RING_RADIUS
+
 local function percentOf(metric)
 	return math.clamp(math.floor(tonumber(metric and metric.percent) or 0), 0, 100)
 end
 
 local function cssString(text)
 	return '"' .. text:gsub('[\\"]', "\\%0") .. '"'
+end
+
+local SEVERITY_COLORS = { low = "%233ddc97", mid = "%23e8b339", high = "%23e5484d", critical = "%23e5484d" }
+
+local function ringColor(metric)
+	local byseverity = SEVERITY_COLORS[metric.severity]
+	if byseverity then
+		return byseverity
+	end
+	local percent = percentOf(metric)
+	if percent >= 80 then
+		return SEVERITY_COLORS.high
+	elseif percent >= 50 then
+		return SEVERITY_COLORS.mid
+	end
+	return SEVERITY_COLORS.low
+end
+
+local function ringImage(metric)
+	local percent = percentOf(metric)
+	local arc = ""
+	if percent > 0 then
+		arc = string.format(
+			"<circle cx='7' cy='7' r='%s' fill='none' stroke='%s' stroke-width='2' stroke-dasharray='%.2f 100' transform='rotate(-90 7 7)'/>",
+			RING_RADIUS, ringColor(metric), RING_CIRCUMFERENCE * percent / 100
+		)
+	end
+	return string.format(
+		'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 14 14\'><circle cx=\'7\' cy=\'7\' r=\'%s\' fill=\'none\' stroke=\'%%23ffffff\' stroke-opacity=\'.15\' stroke-width=\'2\'/>%s</svg>")',
+		RING_RADIUS, arc
+	)
+end
+
+local function ringMetrics(entry)
+	local rings = {}
+	for _, metric in entry.metrics or {} do
+		if tonumber(metric.percent) then
+			table.insert(rings, metric)
+		end
+	end
+	return rings
 end
 
 local function barMetrics(entry)
@@ -149,28 +209,42 @@ local function resetIn(metric)
 	return detail:match("^Resets in (.-)%s*·") or detail:match("^Resets in (.-)%s*$")
 end
 
+local function metricTooltip(metric)
+	local seconds = tonumber(metric.window_secs)
+	local name = if seconds and seconds > 0 then windowName(seconds) else tostring(metric.label or "")
+	local part = string.format("%s %d%%", name, percentOf(metric))
+	local reset = resetIn(metric)
+	return if reset then part .. " (" .. reset .. ")" else part
+end
+
 local function tooltip(entry)
 	local parts = {}
 	for _, metric in entry.metrics do
-		local seconds = tonumber(metric.window_secs) or 0
-		local part = string.format("%s %d%%", windowName(seconds), percentOf(metric))
-		local reset = resetIn(metric)
-		table.insert(parts, if reset then part .. " (" .. reset .. ")" else part)
+		table.insert(parts, metricTooltip(metric))
 	end
 	return table.concat(parts, " · ")
 end
 
 local function updateCss()
-	local rules = { BAR_CSS }
+	local rules = { BAR_CSS, RING_CSS }
+	local current = currentSettings()
 	for _, provider in PROVIDERS do
 		local entry = entryById(usage.entries, provider.id)
 		local top, bottom = barMetrics(entry)
-		if top and currentSettings().style == "bars" then
+		if top and current.style == "bars" then
 			table.insert(rules, string.format(
 				'.sl-plugin[data-tone~="usage-%s"] { --h: %d%%; --w: %d%%; --tip: %s; }',
 				provider.id, percentOf(top), percentOf(bottom),
-				cssString(currentSettings().tooltips and tooltip(entry) or "")
+				cssString(current.tooltips and tooltip(entry) or "")
 			))
+		elseif top and current.style == "rings" then
+			for index, metric in ringMetrics(entry) do
+				table.insert(rules, string.format(
+					'.sl-plugin[data-tone~="usage-ring-%s-%d"] { --tip: %s; }\n.sl-plugin[data-tone~="usage-ring-%s-%d"]::after { background-image: %s; }',
+					provider.id, index, cssString(current.tooltips and metricTooltip(metric) or ""),
+					provider.id, index, ringImage(metric)
+				))
+			end
 		end
 	end
 	tern.css("usage-bar", table.concat(rules, "\n"))
@@ -194,6 +268,13 @@ local function providerSegments(provider, entry)
 	end
 	if currentSettings().style == "text" then
 		return { { text = string.format("%s %d%%", provider.title, percentOf(top)) } }
+	end
+	if currentSettings().style == "rings" then
+		local segments = { { text = provider.icon and "" or provider.title, icon = provider.icon } }
+		for index in ringMetrics(entry) do
+			table.insert(segments, { text = " ", tone = "usage-ring usage-ring-" .. provider.id .. "-" .. index })
+		end
+		return segments
 	end
 	return { { text = provider.icon and "" or provider.title, icon = provider.icon, tone = "usage usage-" .. provider.id } }
 end
