@@ -40,7 +40,7 @@ Open the command palette (Ctrl+Shift+P) and run:
 ### Settings
 
 - **Providers**: Claude, Agy (Antigravity) and Codex are on by default. Turning a provider on also runs `ai-usagebar settings enable <id>`. Supported providers: Claude, Agy, Codex, Anthropic API, Copilot, Z.AI, OpenRouter, DeepSeek, DeepInfra, Kimi, Kilo, Novita, Synthetic, Moonshot, Grok, SuperGrok, Grok Bot, Cursor, MiniMax, Kiro, Nous, OpenCode Go, Command Code, Ollama, OrcaRouter, Model Studio, Lyceum, Devin, Muse Code and Cline.
-- **Style**: bars, or percent text.
+- **Style**: bars, rings, or percent text.
 - **Separators**: a `│` between providers.
 - **Hover tooltips**: percentages and reset times on hover.
 - **Refresh**: every 1, 2, 5, 10, 15, 30 or 60 minutes (default 5).
