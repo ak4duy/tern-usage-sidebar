@@ -1,5 +1,7 @@
 # tern-usage-sidebar
 
+> **Archived.** Since Tern 0.9.17, the built-in widget bar covers this. It shows widgets along the window's foot, including AI usage limits, with hover details. Add them from palette › Edit widgets…. This repository is no longer maintained.
+
 A Tern plugin that shows your AI usage limits in the status bar, using data from `ai-usagebar`.
 
 Each provider gets a small two-line bar: the top line is the 5-hour window, the bottom line is the weekly window. Hover a bar to see the percentages and reset times.
